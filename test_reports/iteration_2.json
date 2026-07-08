@@ -1,0 +1,44 @@
+{
+  "summary": "Regression test for the 'disable/expiry preserves Flussonic stream' bug fix — ALL 4 NEW TESTS PASS + previous 32 tests still green (36/36 = 100%). Verified against the real Flussonic server (mumbai-edge.smartplaytv.in) with basic auth smartplay:Smart@1117. KEY ASSERTIONS validated: (1) user-initiated /channels/{id}/disable now keeps the stream on Flussonic with disabled=true (previously 404); (2) admin expire-now path (expire_channels_task) also preserves the stream with disabled=true; (3) admin /admin/channels/{id}/disable preserves the stream; (4) DELETE endpoints still fully remove the stream (returns 404 on direct Flussonic GET). Renewal correctly flips disabled back to false on Flussonic. All test channels cleaned up via DELETE in finally blocks — no orphan streams left on Flussonic. Previous iteration's fix (Flussonic PUT payload + lazy env loading) is still intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /streamer/api/v3/streams (via services/flussonic.py)", "issue": "httpx.AsyncClient uses verify=False (line 52) — acceptable because upstream cert may be self-signed, but consider making this env-toggleable for prod hardening."},
+      {"endpoint": "POST /api/channels/{id}/disable & /api/admin/channels/{id}/disable", "issue": "No status check — endpoint returns 200 even when channel is already disabled or already deleted from Flussonic. Idempotent behaviour is fine, but for expired channels the user endpoint still allows disable (state may be confusing in UI)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_flussonic_preserve.py",
+    "/app/backend/tests/test_broadcaster_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "No action required — bug fix is verified against real Flussonic server. Safe to ship.",
+    "Optional: make httpx verify_ssl controllable via env FLUSSONIC_VERIFY_SSL to allow strict mode in prod."
+  ],
+  "critical_code_review_comments": [
+    "services/flussonic.py: new disable_stream() / enable_stream() correctly delegate to _put_stream() with the exact payload {'inputs':[{'url':'publish://'}], 'disabled': bool}. Matches Flussonic v3 API contract.",
+    "server.py:204 (expire_channels_task): calls disable_stream() (was previously delete_stream()) — correct.",
+    "server.py:546 (user /channels/{id}/disable): calls disable_stream() — correct.",
+    "server.py:725 (admin /channels/{id}/disable): calls disable_stream() — correct.",
+    "server.py:521 (renew) and server.py:561 (enable): call enable_stream() — correct.",
+    "server.py:573 (user DELETE /channels/{id}) and server.py:714 (admin DELETE /admin/channels/{id}): still call delete_stream() — correct. Delete is the only path that removes from Flussonic.",
+    "flussonic client silently returns {'success': False} when unreachable — this is graceful but callers do not surface the error to the client. Not a regression.",
+    "Race note: Flussonic may take 500ms–2s to reflect the PUT; test uses polling (_wait_for_state, 6×1.5s) which is robust. Server does not need to poll because state is only ever queried via the monitor endpoint later."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_flussonic_preserve.py (new — 4 new regression tests)"
+  ],
+  "success_rate": {"backend": "100% (36/36)", "frontend": "not tested (skipped per request)"},
+  "seed_data_creation": "Each test creates 1 TEST channel (name prefix 'TEST Preserve <uuid6>') and deletes it in a finally block. Uses the seeded admin account (admin@broadcaster.com) so wallet has ample balance for the 500 debit per create. No user rows created. Direct Mongo write (pymongo) on 'channels' collection is used ONLY to backdate expires_at for TEST 2 (immediately followed by /api/admin/expire-now and cleanup DELETE).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two backend test files now exist: (1) /app/backend/tests/test_broadcaster_api.py — 32 API smoke tests, (2) /app/backend/tests/test_flussonic_preserve.py — 4 real-Flussonic integration tests for the disable/expiry preservation contract. Full suite runs in ~47s (pytest, 36 tests, 0 failures). Tests require real Flussonic server (mumbai-edge.smartplaytv.in) to be reachable — if it becomes unreachable the 4 new tests will fail on the first _flussonic_get() call with a clear message. Uses EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env and MONGO_URL/DB_NAME/FLUSSONIC_* from /app/backend/.env. Cleanup is idempotent (best-effort DELETE in finally).",
+  "rca_of_issue": "N/A — bug already fixed by main agent in this iteration. This iteration verified the fix end-to-end against the real Flussonic server. The critical behavioural change (delete_stream -> disable_stream on user/admin disable and on background expiry) is confirmed working: Flussonic GET returns 200 with disabled=true after all three disable paths, and 404 only after actual DELETE."
+}

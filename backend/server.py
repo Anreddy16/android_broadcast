@@ -194,15 +194,16 @@ async def seed_admin() -> None:
 
 
 async def expire_channels_task() -> None:
-    """Mark channels whose expires_at < now as expired and disable Flussonic streams."""
+    """Mark channels whose expires_at < now as expired and disable Flussonic streams
+    (config is preserved so renewal can re-enable instantly)."""
     cursor = db.channels.find(
         {"status": {"$in": ["active", "disabled"]}, "expires_at": {"$lt": now_utc()}}
     )
     async for ch in cursor:
         try:
-            await flussonic.delete_stream(ch["stream_name"])
+            await flussonic.disable_stream(ch["stream_name"])
         except Exception as e:
-            logger.warning("Failed to delete stream on expiry: %s", e)
+            logger.warning("Failed to disable stream on expiry: %s", e)
         await db.channels.update_one(
             {"id": ch["id"]}, {"$set": {"status": "expired", "updated_at": now_utc()}}
         )
@@ -516,9 +517,8 @@ async def renew_channel(channel_id: str, user: Dict[str, Any] = Depends(get_curr
 
     new_balance = await _debit_wallet(user["id"], CHANNEL_PRICE, f"Channel renewal: {ch['name']}")
 
-    # Reactivate stream if it was expired/disabled
-    if ch["status"] != "active":
-        await flussonic.create_stream(ch["stream_name"])
+    # Re-enable stream (works whether it was disabled or expired)
+    await flussonic.enable_stream(ch["stream_name"])
 
     now = now_utc()
     current_exp = ch.get("expires_at") or now
@@ -542,7 +542,8 @@ async def disable_channel(channel_id: str, user: Dict[str, Any] = Depends(get_cu
     ch = await db.channels.find_one({"id": channel_id, "user_id": user["id"]})
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
-    await flussonic.delete_stream(ch["stream_name"])
+    # Preserve stream config on Flussonic; only stop publishing/playback
+    await flussonic.disable_stream(ch["stream_name"])
     await db.channels.update_one(
         {"id": channel_id}, {"$set": {"status": "disabled", "updated_at": now_utc()}}
     )
@@ -557,7 +558,7 @@ async def enable_channel(channel_id: str, user: Dict[str, Any] = Depends(get_cur
     exp = ch.get("expires_at")
     if exp and exp.replace(tzinfo=timezone.utc) < now_utc():
         raise HTTPException(status_code=400, detail="Channel expired. Please renew.")
-    await flussonic.create_stream(ch["stream_name"])
+    await flussonic.enable_stream(ch["stream_name"])
     await db.channels.update_one(
         {"id": channel_id}, {"$set": {"status": "active", "updated_at": now_utc()}}
     )
@@ -720,7 +721,8 @@ async def admin_disable_channel(channel_id: str, admin: Dict[str, Any] = Depends
     ch = await db.channels.find_one({"id": channel_id})
     if not ch:
         raise HTTPException(status_code=404, detail="Not found")
-    await flussonic.delete_stream(ch["stream_name"])
+    # Preserve stream config on Flussonic; only stop it
+    await flussonic.disable_stream(ch["stream_name"])
     await db.channels.update_one({"id": channel_id}, {"$set": {"status": "disabled", "updated_at": now_utc()}})
     return {"ok": True}
 

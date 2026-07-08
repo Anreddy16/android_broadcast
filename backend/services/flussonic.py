@@ -60,7 +60,18 @@ class FlussonicClient:
             return None
 
     async def create_stream(self, stream_name: str) -> Dict[str, Any]:
-        body = {"inputs": [{"url": "publish://"}]}
+        return await self._put_stream(stream_name, disabled=False)
+
+    async def disable_stream(self, stream_name: str) -> Dict[str, Any]:
+        """Keep stream config on Flussonic but stop publishing/playback."""
+        return await self._put_stream(stream_name, disabled=True)
+
+    async def enable_stream(self, stream_name: str) -> Dict[str, Any]:
+        """Re-enable a previously disabled stream (recreates if missing)."""
+        return await self._put_stream(stream_name, disabled=False)
+
+    async def _put_stream(self, stream_name: str, disabled: bool) -> Dict[str, Any]:
+        body = {"inputs": [{"url": "publish://"}], "disabled": disabled}
         resp = await self._req(
             "PUT", f"/streamer/api/v3/streams/{stream_name}", json=body
         )
