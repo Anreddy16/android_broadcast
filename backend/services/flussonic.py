@@ -1,13 +1,15 @@
 """Flussonic Media Server client.
 Uses REST API v3 with HTTP Basic auth.
-If the remote server is unreachable / rejects auth, we still return a
-deterministic set of URLs so the app remains functional (mocked fallback).
+Env is read LAZILY (per call) because this module may be imported before
+server.py's load_dotenv() has run.
 """
 from __future__ import annotations
 
 import base64
 import logging
 import os
+import time
+import traceback
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
@@ -17,35 +19,48 @@ logger = logging.getLogger(__name__)
 
 
 class FlussonicClient:
-    def __init__(self) -> None:
-        self.base_url: str = os.environ.get("FLUSSONIC_URL", "").rstrip("/")
-        self.user: str = os.environ.get("FLUSSONIC_USER", "")
-        self.password: str = os.environ.get("FLUSSONIC_PASS", "")
-        parsed = urlparse(self.base_url) if self.base_url else None
-        self.host: str = parsed.hostname if parsed else ""
-        self.scheme: str = parsed.scheme if parsed else "https"
+    def _cfg(self) -> Dict[str, str]:
+        base_url = (os.environ.get("FLUSSONIC_URL") or "").rstrip("/")
+        parsed = urlparse(base_url) if base_url else None
+        return {
+            "base_url": base_url,
+            "user": os.environ.get("FLUSSONIC_USER", ""),
+            "password": os.environ.get("FLUSSONIC_PASS", ""),
+            "host": (parsed.hostname if parsed else "") or "",
+            "scheme": (parsed.scheme if parsed else "https") or "https",
+        }
 
-    def _auth_header(self) -> Dict[str, str]:
-        raw = f"{self.user}:{self.password}".encode()
+    @property
+    def host(self) -> str:
+        return self._cfg()["host"]
+
+    @property
+    def scheme(self) -> str:
+        return self._cfg()["scheme"]
+
+    def _auth_header(self, cfg: Dict[str, str]) -> Dict[str, str]:
+        raw = f"{cfg['user']}:{cfg['password']}".encode()
         return {"Authorization": "Basic " + base64.b64encode(raw).decode()}
 
     async def _req(self, method: str, path: str, **kwargs: Any) -> Optional[httpx.Response]:
-        if not self.base_url:
+        cfg = self._cfg()
+        if not cfg["base_url"]:
+            print(f"[FLUSSONIC] base_url empty; skipping {method} {path}", flush=True)
             return None
-        url = f"{self.base_url}{path}"
+        url = f"{cfg['base_url']}{path}"
         try:
             async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
                 resp = await client.request(
-                    method, url, headers=self._auth_header(), **kwargs
+                    method, url, headers=self._auth_header(cfg), **kwargs
                 )
                 return resp
         except Exception as e:  # network / SSL / DNS
-            logger.warning("Flussonic %s %s failed: %s", method, path, e)
+            print(f"[FLUSSONIC] {method} {url} FAILED: {type(e).__name__}: {e}", flush=True)
+            traceback.print_exc()
             return None
 
     async def create_stream(self, stream_name: str) -> Dict[str, Any]:
-        """Create a publish stream on Flussonic. Returns dict {success, raw}."""
-        body = {"input": "publish://"}
+        body = {"inputs": [{"url": "publish://"}]}
         resp = await self._req(
             "PUT", f"/streamer/api/v3/streams/{stream_name}", json=body
         )
@@ -78,20 +93,10 @@ class FlussonicClient:
         return {"success": False, "data": {}}
 
     async def get_stream_health(self, stream_name: str) -> Dict[str, Any]:
-        """Best-effort real-time metrics from Flussonic."""
-        resp = await self._req(
-            "GET", f"/streamer/api/v3/streams/{stream_name}/health"
-        )
+        resp = await self._req("GET", f"/streamer/api/v3/streams/{stream_name}")
         if resp and resp.status_code == 200:
             try:
                 return resp.json()
-            except Exception:
-                return {}
-        # fallback endpoint
-        resp2 = await self._req("GET", f"/streamer/api/v3/streams/{stream_name}")
-        if resp2 and resp2.status_code == 200:
-            try:
-                return resp2.json()
             except Exception:
                 return {}
         return {}
@@ -121,39 +126,60 @@ class FlussonicClient:
         }
 
     def parse_health(self, raw: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalize Flussonic health/status payload into flat metrics."""
+        """Normalize Flussonic v3 stream payload into flat metrics.
+
+        Flussonic v3 shape (from GET /streamer/api/v3/streams/{name}):
+          {"stats": {"alive": bool, "bytes_in": n, "bytes_out": n,
+                     "online_clients": n, "inputs_bandwidth": n,
+                     "out_bandwidth": n, "opened_at": ms},
+           "inputs": [{"stats": {"media_info": {"tracks": [...]}}}]}
+        """
         if not raw:
-            return {
-                "alive": False,
-                "bitrate_in": 0,
-                "bitrate_out": 0,
-                "resolution": "-",
-                "fps": 0,
-                "audio_codec": "-",
-                "video_codec": "-",
-                "viewers": 0,
-                "uptime_seconds": 0,
-                "bandwidth_bytes": 0,
-            }
-        stats = raw.get("stats") or raw.get("input") or {}
-        media = raw.get("media_info") or raw.get("mediaInfo") or {}
-        streams = media.get("streams", []) if isinstance(media, dict) else []
-        video_tr = next((s for s in streams if s.get("content") == "video"), {})
-        audio_tr = next((s for s in streams if s.get("content") == "audio"), {})
+            return _empty_metrics()
+        stats = raw.get("stats") or {}
+        inputs = raw.get("inputs") or []
+        media = {}
+        if inputs and isinstance(inputs, list):
+            first = inputs[0] or {}
+            media = ((first.get("stats") or {}).get("media_info")) or {}
+        tracks = media.get("tracks") or media.get("streams") or []
+        video_tr = next((t for t in tracks if t.get("content") == "video"), {}) or {}
+        audio_tr = next((t for t in tracks if t.get("content") == "audio"), {}) or {}
         width = video_tr.get("width") or 0
         height = video_tr.get("height") or 0
+
+        opened_ms = stats.get("opened_at") or 0
+        uptime = 0
+        if opened_ms:
+            uptime = max(0, int(time.time()) - int(opened_ms / 1000))
+
         return {
-            "alive": bool(raw.get("alive") or stats.get("alive")),
-            "bitrate_in": int(stats.get("bitrate", 0)) if isinstance(stats.get("bitrate", 0), (int, float)) else 0,
-            "bitrate_out": int(raw.get("output_bitrate", 0) or 0),
+            "alive": bool(stats.get("alive")),
+            "bitrate_in": int(stats.get("inputs_bandwidth") or 0),
+            "bitrate_out": int(stats.get("out_bandwidth") or 0),
             "resolution": f"{width}x{height}" if width and height else "-",
             "fps": int(video_tr.get("fps") or 0),
             "audio_codec": audio_tr.get("codec") or "-",
             "video_codec": video_tr.get("codec") or "-",
-            "viewers": int(raw.get("online_clients") or raw.get("clients") or 0),
-            "uptime_seconds": int(stats.get("opened_at_delta") or 0),
-            "bandwidth_bytes": int(raw.get("bytes_out") or 0),
+            "viewers": int(stats.get("online_clients") or stats.get("client_count") or 0),
+            "uptime_seconds": uptime if bool(stats.get("alive")) else 0,
+            "bandwidth_bytes": int(stats.get("bytes_out") or 0),
         }
+
+
+def _empty_metrics() -> Dict[str, Any]:
+    return {
+        "alive": False,
+        "bitrate_in": 0,
+        "bitrate_out": 0,
+        "resolution": "-",
+        "fps": 0,
+        "audio_codec": "-",
+        "video_codec": "-",
+        "viewers": 0,
+        "uptime_seconds": 0,
+        "bandwidth_bytes": 0,
+    }
 
 
 flussonic = FlussonicClient()
