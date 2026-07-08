@@ -1,0 +1,184 @@
+{
+  "app_identity": {
+    "name": "Channel Broadcaster",
+    "persona": "The Performance Pro & Swiss High-Contrast",
+    "theme": "Premium SaaS Broadcaster Dashboard",
+    "vibe": "Authority, Precision, Elite, Data-Heavy, Tactical",
+    "target_audience": "IPTV Operators, TV Broadcasters, Churches, Event Organizers",
+    "design_principles": [
+      "Information clarity and hierarchy are paramount. No wasted space, high density where needed.",
+      "High-contrast text and indicators for Live/Offline states.",
+      "Professional, moody dark theme by default, with an ultra-clean stark light theme option.",
+      "Tactical Minimalism: Replace soft, muddy shadows with crisp 1px borders and subtle inner glows.",
+      "Data is the hero: Bitrate, viewers, uptime must jump off the screen."
+    ]
+  },
+  "typography": {
+    "strategy": "Swiss Brutalist meets Soft Utility. Highly legible, structured, numeric-focused.",
+    "primary_font": "Space Grotesk (BANNED). Use 'Inter' or 'SF Pro' for body, and a strong display font like 'Outfit', 'Chivo', or 'IBM Plex Sans' for Headings to avoid the default look.",
+    "heading_font_family": "Chivo",
+    "body_font_family": "Inter",
+    "mono_font_family": "JetBrains Mono",
+    "scales": {
+      "h1": "text-4xl font-black tracking-tighter",
+      "h2": "text-3xl font-bold tracking-tight",
+      "h3": "text-2xl font-semibold tracking-tight",
+      "h4": "text-xl font-medium",
+      "body": "text-base font-normal leading-relaxed",
+      "small": "text-sm font-medium",
+      "xs": "text-xs font-semibold tracking-widest uppercase",
+      "data_metric": "text-4xl font-bold tracking-tighter"
+    },
+    "rules": [
+      "Use Mono font (JetBrains Mono) for stream keys, URLs, bitrates, IPs, and technical metrics.",
+      "Labels must be tiny, uppercase, and widely spaced (tracking-[0.1em]).",
+      "Do not center align block text; keep it left-aligned for rapid reading."
+    ]
+  },
+  "colors": {
+    "dark_mode": {
+      "background": "#050505",
+      "surface": "#0F0F11",
+      "surface_elevated": "#1A1A1D",
+      "border": "#27272A",
+      "text_primary": "#FFFFFF",
+      "text_secondary": "#A1A1AA",
+      "text_muted": "#52525B"
+    },
+    "light_mode": {
+      "background": "#FAFAFA",
+      "surface": "#FFFFFF",
+      "surface_elevated": "#F4F4F5",
+      "border": "#E4E4E7",
+      "text_primary": "#09090B",
+      "text_secondary": "#52525B",
+      "text_muted": "#A1A1AA"
+    },
+    "semantic": {
+      "primary": "#3B82F6",
+      "primary_hover": "#2563EB",
+      "accent": "#8B5CF6",
+      "live_red": "#EF4444",
+      "healthy_green": "#10B981",
+      "warning_yellow": "#F59E0B",
+      "offline_grey": "#71717A"
+    },
+    "rules": [
+      "Avoid muddy grey transparency. Use solid off-blacks or off-whites.",
+      "Live status indicators MUST pulse using the live_red (#EF4444) color.",
+      "The 'Live Red' should ONLY be used for live streaming statuses or destructive actions. Do not use it for primary buttons.",
+      "Use primary (Electric Blue) for wallet recharges, primary actions, and copying URLs."
+    ]
+  },
+  "spacing_and_layout": {
+    "system": "Dense & Compact for dashboards, generous for auth/empty states.",
+    "container_padding": "p-4 md:p-6",
+    "card_padding": "p-4",
+    "gap_standard": "gap-4",
+    "gap_large": "gap-6",
+    "rules": [
+      "Always use safe area insets for mobile layout (react-native-safe-area-context).",
+      "Use ScrollView/FlatList properly to ensure content doesn't get clipped.",
+      "Cards should have a 1px border (`border border-border`) instead of heavy drop shadows.",
+      "Border Radius: `rounded-xl` for large cards, `rounded-lg` for inputs/buttons, `rounded-full` for status dots."
+    ]
+  },
+  "components": {
+    "cards": {
+      "style": "Flat, sharp 1px border, no shadow on dark mode, minimal shadow on light mode. Background surface color.",
+      "active_state": "If a channel card is LIVE, add a subtle colored 1px border (e.g., border-live_red/50) or left accent line."
+    },
+    "buttons": {
+      "primary": "bg-primary text-white font-semibold rounded-lg h-12 flex items-center justify-center active:opacity-80",
+      "secondary": "bg-surface_elevated text-text_primary border border-border rounded-lg h-12 flex items-center justify-center active:opacity-80",
+      "destructive": "bg-live_red/10 text-live_red border border-live_red/20 rounded-lg h-12 flex items-center justify-center active:opacity-80"
+    },
+    "inputs": {
+      "style": "h-12 bg-surface border border-border rounded-lg px-4 text-text_primary placeholder:text-text_muted focus:border-primary",
+      "label": "text-xs font-semibold uppercase tracking-wider text-text_secondary mb-1.5"
+    },
+    "badges": {
+      "live": "bg-live_red/10 text-live_red border border-live_red/20 px-2 py-1 rounded text-xs font-bold uppercase",
+      "offline": "bg-offline_grey/10 text-offline_grey border border-offline_grey/20 px-2 py-1 rounded text-xs font-bold uppercase"
+    },
+    "list_items": {
+      "style": "flex-row items-center justify-between p-4 border-b border-border bg-surface active:bg-surface_elevated"
+    }
+  },
+  "screens": {
+    "auth": {
+      "layout": "Hero image background overlaid with solid gradient transitioning into the login form at the bottom 60% of the screen.",
+      "elements": "Email Input, OTP mock input (hidden until requested), 'Forgot Password' subtle link, Primary Login/Signup CTA."
+    },
+    "dashboard": {
+      "layout": "Grid/List hybrid. Top section: Wallet Balance Widget (prominent, high contrast). Middle section: Quick stats (Active Channels, Expiries). Bottom: Recent Activity List.",
+      "wallet_widget": "Gradient background (Primary to Accent), large bold balance text, 'Recharge' quick action."
+    },
+    "wallet": {
+      "layout": "Top half shows large balance, monthly burn rate (₹500/channel/mo). Bottom half is Transaction History FlatList (Credits green, Debits red).",
+      "actions": "Recharge Wallet CTA."
+    },
+    "create_channel": {
+      "layout": "Form inside a ScrollView. Fields: Name, Category, Language, Description. Image Picker for Logo.",
+      "info_banner": "Persistent banner: 'Deducts ₹500 from wallet for 30 days validity'."
+    },
+    "channel_list": {
+      "layout": "FlatList of Channel Cards.",
+      "card_anatomy": "Left: Logo. Middle: Name, Status Badge (Live/Offline), Remaining Days. Right: Action Menu (...) or Arrow to view.",
+      "actions": "View URLs, Renew, Disable, Delete, Stats."
+    },
+    "streaming_info": {
+      "layout": "Data-dense list. Each section (RTMP, HLS, DASH, WebRTC, RTSP) has a label, a Mono-font URL box, and a row of action icons (Copy, Share, QR Code).",
+      "security": "Stream keys should be masked by default with an 'eye' icon to reveal."
+    },
+    "stream_monitoring": {
+      "layout": "Top: HLS Video Player component (16:9 aspect ratio). Middle: Live Metrics Grid (Bitrate, Resolution, FPS, Codecs, Viewers). Bottom: Uptime chart or stats.",
+      "metrics_styling": "Bento grid style. Each metric is a small square card. Number is large (Mono font), label is tiny."
+    },
+    "admin_portal": {
+      "layout": "Tabbed view or list of admin actions: Manage Users, All Channels, Revenue, System Wallet Credits.",
+      "style": "Utilitarian, dense, table-like rows."
+    }
+  },
+  "images": {
+    "auth_background": {
+      "url": "https://images.unsplash.com/photo-1763128734412-e1aa7d71d006?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwxfHxsaXZlJTIwYnJvYWRjYXN0JTIwc3R1ZGlvJTIwZGFya3xlbnwwfHx8fDE3ODM1MTkyMzZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Neon 'on air' sign",
+      "usage": "Use as a blurred or dark-overlay background for the Auth/Login screen."
+    },
+    "default_channel_logo_1": {
+      "url": "https://images.unsplash.com/photo-1634634120836-2e9581aba554?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGdsb3dpbmclMjBvcmJ8ZW58MHx8fHwxNzgzNTE5MjQ0fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Abstract glowing orb",
+      "usage": "Use as a default fallback image for Channel Logos if none is uploaded."
+    },
+    "default_channel_logo_2": {
+      "url": "https://images.unsplash.com/photo-1636412911203-4065623b94fc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGdsb3dpbmclMjBvcmJ8ZW58MHx8fHwxNzgzNTE5MjQ0fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Colorful abstract object",
+      "usage": "Alternative fallback for Channel Logos."
+    },
+    "user_avatar": {
+      "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MzM5MDAzMHww&ixlib=rb-4.1.0&q=85",
+      "description": "Professional headshot",
+      "usage": "Use as the mock avatar for the logged-in user or admin user lists."
+    }
+  },
+  "general_ui_ux_design_guidelines": [
+    "Testing Attributes: All interactive and key informational elements MUST include a `testID` (for React Native) or `data-testid` (if using web/expo-web) attribute. Format: kebab-case (e.g., `testID=\"login-submit-button\"`).",
+    "Theme Support: Implement both Dark and Light themes. Default to Dark Theme since it is a broadcaster app. Provide a toggle in settings.",
+    "Opacity States: Instead of hover states (which don't exist on mobile), always use `activeOpacity={0.7}` on Touchables for immediate tactile feedback.",
+    "Transparent Backgrounds: DO NOT use complete transparent backgrounds in headers, sticky footers, or modals over content. Use solid colors or heavy blurs (if platform supports) to ensure text legibility.",
+    "Typography Alignment: Left-align block text and forms. Center-align only for empty states or simple dialogs.",
+    "Avoid AI Slop: Do NOT use standard generic emojis for icons. Use a professional icon set (Lucide or Phosphor). Do NOT use generic gradients on text or backgrounds unless specified."
+  ],
+  "instructions_to_main_agent": [
+    "This is an Expo React Native application. Do NOT use HTML/Web elements like <div>, <span>, or Shadcn UI React Web components.",
+    "Use standard React Native components: View, Text, TextInput, TouchableOpacity, ScrollView, FlatList, Modal.",
+    "If using NativeWind, apply Tailwind utility classes via the `className` prop on Native components.",
+    "For icons, use `lucide-react-native` or `@expo/vector-icons`.",
+    "For the built-in stream preview, use `expo-av` or a suitable React Native video player capable of HLS playback.",
+    "For charts (Stream Monitoring), use `react-native-chart-kit` or `react-native-svg-charts`.",
+    "For QR codes, use `react-native-qrcode-svg`.",
+    "Make sure all lists (Channels, Activity, Transactions) use `FlatList` for performance, not a `.map()` inside a `ScrollView` if data could be large.",
+    "Ensure safe areas are respected using `react-native-safe-area-context`."
+  ]
+}
