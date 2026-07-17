@@ -162,6 +162,25 @@ class CreateChannelIn(BaseModel):
     language: str = "English"
     description: str = ""
     logo_base64: Optional[str] = None
+    plan_id: Optional[str] = None  # If None, cheapest active plan is used
+
+
+class RenewChannelIn(BaseModel):
+    plan_id: Optional[str] = None
+
+
+class PlanIn(BaseModel):
+    name: str = Field(min_length=1)
+    price: int = Field(gt=0)
+    validity_days: int = Field(gt=0)
+    active: bool = True
+
+
+class PlanUpdateIn(BaseModel):
+    name: Optional[str] = None
+    price: Optional[int] = Field(default=None, gt=0)
+    validity_days: Optional[int] = Field(default=None, gt=0)
+    active: Optional[bool] = None
 
 
 class AdminWalletAdjustIn(BaseModel):
@@ -191,6 +210,50 @@ async def seed_admin() -> None:
     }
     await db.users.insert_one(user)
     logger.info("Seeded admin: %s", ADMIN_EMAIL)
+
+
+async def seed_plans() -> None:
+    """Seed default plans on first run only. Idempotent by name."""
+    defaults = [
+        {"name": "Monthly", "price": 500, "validity_days": 30},
+        {"name": "Quarterly", "price": 1350, "validity_days": 90},
+        {"name": "Annual", "price": 4800, "validity_days": 365},
+    ]
+    for d in defaults:
+        if not await db.plans.find_one({"name": d["name"]}):
+            await db.plans.insert_one(
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": d["name"],
+                    "price": d["price"],
+                    "validity_days": d["validity_days"],
+                    "active": True,
+                    "created_at": now_utc(),
+                }
+            )
+
+
+async def _resolve_plan(plan_id: Optional[str]) -> Dict[str, Any]:
+    """Return active plan by id; falls back to cheapest active plan."""
+    if plan_id:
+        plan = await db.plans.find_one({"id": plan_id, "active": True})
+        if not plan:
+            raise HTTPException(status_code=400, detail="Selected plan is invalid or inactive")
+        return plan
+    plan = await db.plans.find_one({"active": True}, sort=[("price", 1)])
+    if not plan:
+        raise HTTPException(status_code=400, detail="No active plans available. Contact admin.")
+    return plan
+
+
+def _clean_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+    if not plan:
+        return plan
+    plan = dict(plan)
+    plan.pop("_id", None)
+    if isinstance(plan.get("created_at"), datetime):
+        plan["created_at"] = iso(plan["created_at"])
+    return plan
 
 
 async def expire_channels_task() -> None:
@@ -232,6 +295,7 @@ async def notify(user_id: str, title: str, body: str, kind: str) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await seed_admin()
+    await seed_plans()
     # Indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
@@ -240,6 +304,8 @@ async def lifespan(app: FastAPI):
     await db.channels.create_index("user_id")
     await db.transactions.create_index("user_id")
     await db.notifications.create_index("user_id")
+    await db.plans.create_index("id", unique=True)
+    await db.plans.create_index("name", unique=True)
 
     # Start background expiry task (once per hour)
     import asyncio
