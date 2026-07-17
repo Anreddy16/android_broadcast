@@ -180,13 +180,20 @@ export default function ChannelDetail() {
         </View>
 
         {/* Preview */}
-        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: 10 }}>
           <Button
             testID="open-preview-btn"
             title="Open Live Preview (HLS)"
             icon={<Ionicons name="play" size={16} color="#fff" />}
             onPress={() => setShowPreview(true)}
             variant="primary"
+          />
+          <Button
+            testID="open-channels-preview-btn"
+            title="Browse All Channels"
+            icon={<Ionicons name="tv" size={16} color="#fff" />}
+            onPress={() => router.push({ pathname: "/channel/preview", params: { id: channel.id } })}
+            variant="secondary"
           />
         </View>
 

@@ -54,13 +54,22 @@ export default function ChannelsScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={[styles.title, { color: c.textPrimary }]}>Channels</Text>
-          <TouchableOpacity
-            testID="create-channel-btn"
-            onPress={() => router.push("/channel/create")}
-            style={[styles.plusBtn, { backgroundColor: c.primary }]}
-          >
-            <Ionicons name="add" size={22} color="#fff" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              testID="open-preview-list-btn"
+              onPress={() => router.push("/channel/preview")}
+              style={[styles.plusBtn, { backgroundColor: c.surfaceElevated, borderWidth: 1, borderColor: c.border }]}
+            >
+              <Ionicons name="tv" size={20} color={c.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="create-channel-btn"
+              onPress={() => router.push("/channel/create")}
+              style={[styles.plusBtn, { backgroundColor: c.primary }]}
+            >
+              <Ionicons name="add" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Chip row */}
